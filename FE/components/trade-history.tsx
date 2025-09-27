@@ -25,7 +25,7 @@ export function TradeHistory() {
     const mockTrades: TradeHistory[] = [
       {
         id: "1",
-        symbol: "BTC-PERP",
+        symbol: "BTC-USD",
         side: "long",
         type: "open",
         size: 0.5,
@@ -35,7 +35,7 @@ export function TradeHistory() {
       },
       {
         id: "2",
-        symbol: "BTC-PERP",
+        symbol: "BTC-USD",
         side: "short",
         type: "open",
         size: 0.25,
@@ -45,7 +45,7 @@ export function TradeHistory() {
       },
       {
         id: "3",
-        symbol: "BTC-PERP",
+        symbol: "BTC-USD",
         side: "long",
         type: "close",
         size: 0.3,

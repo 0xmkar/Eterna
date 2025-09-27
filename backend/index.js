@@ -8,6 +8,10 @@ const cors = require("cors");
 // Import routes
 const userRoutes = require("./routes/users.js");
 const orderRoutes = require("./routes/orders.js");
+const cronRoutes = require("./routes/cronRoutes.js");
+
+// Import cron job service
+const cronJobService = require("./services/cronJobService.js");
 
 // express app
 const express = require("express");
@@ -19,6 +23,7 @@ app.use(express.json()); // Parse JSON bodies
 // Use routes
 app.use("/users", userRoutes);
 app.use("/orders", orderRoutes);
+app.use("/cron", cronRoutes);
 
 async function startFundingRateAndPerpPriceUpdateHandling() {
   await start();
@@ -49,5 +54,26 @@ app.get("/health", (req, res) => {
 // Start the server
 app.listen(port, "0.0.0.0", () => {
   console.log(`Server is running on http://0.0.0.0:${port}`);
+  
+  // Start cron job service after server starts
+  setTimeout(() => {
+    console.log("Starting order matching and execution service...");
+    cronJobService.start();
+  }, 2000); // Wait 2 seconds for server to fully initialize
 });
-startFundingRateAndPerpPriceUpdateHandling(); 
+
+// Start funding rate and perp price update handling
+startFundingRateAndPerpPriceUpdateHandling();
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\nReceived SIGINT. Graceful shutdown...');
+  cronJobService.stop();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\nReceived SIGTERM. Graceful shutdown...');
+  cronJobService.stop();
+  process.exit(0);
+}); 

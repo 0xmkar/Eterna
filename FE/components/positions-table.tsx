@@ -48,7 +48,7 @@ export function PositionsTable() {
       },
       {
         id: "2",
-        symbol: "BTC-PERP",
+        symbol: "BTC-USD",
         side: "short",
         size: 0.25,
         entryPrice: 52300,

@@ -23,7 +23,7 @@ export function TradingPanel({ currentPrice = 109200, userBalance = 0 }: Trading
   const actualCurrentPrice = btcPrice > 0 ? btcPrice : currentPrice
   
   const [orderType, setOrderType] = useState<"market" | "limit">("market")
-  const [side, setSide] = useState<"long" | "short">("long")
+  const [side, setSide] = useState<"buy" | "sell">("buy")
   const [size, setSize] = useState("")
   const [price, setPrice] = useState(actualCurrentPrice.toString())
   const [leverage, setLeverage] = useState([10])
@@ -55,7 +55,7 @@ export function TradingPanel({ currentPrice = 109200, userBalance = 0 }: Trading
     const margin = calculateMargin()
     const maintenanceMargin = margin * 0.1 // 10% maintenance margin
 
-    if (side === "long") {
+    if (side === "buy") {
       return actualCurrentPrice - (maintenanceMargin / sizeNum) * actualCurrentPrice
     } else {
       return actualCurrentPrice + (maintenanceMargin / sizeNum) * actualCurrentPrice
@@ -90,7 +90,7 @@ export function TradingPanel({ currentPrice = 109200, userBalance = 0 }: Trading
 
     const orderData = {
       user_id: userId,
-      side: side.toUpperCase(), // Convert to LONG/SHORT
+      side: side.toUpperCase(), // Convert to BUY/SELL
       price: orderType === 'market' ? actualCurrentPrice : parseFloat(price),
       // price: null,
       quantity: parseFloat(size),
@@ -228,17 +228,17 @@ export function TradingPanel({ currentPrice = 109200, userBalance = 0 }: Trading
         {/* Side Selection */}
         <div className="grid grid-cols-2 gap-2">
           <Button
-            variant={side === "long" ? "default" : "outline"}
-            onClick={() => setSide("long")}
-            className={side === "long" ? "bg-long hover:bg-long/90 text-white" : ""}
+            variant={side === "buy" ? "default" : "outline"}
+            onClick={() => setSide("buy")}
+            className={side === "buy" ? "bg-long hover:bg-long/90 text-white" : ""}
           >
             <TrendingUp className="w-4 h-4 mr-2" />
             Long
           </Button>
           <Button
-            variant={side === "short" ? "default" : "outline"}
-            onClick={() => setSide("short")}
-            className={side === "short" ? "bg-short hover:bg-short/90 text-white" : ""}
+            variant={side === "sell" ? "default" : "outline"}
+            onClick={() => setSide("sell")}
+            className={side === "sell" ? "bg-short hover:bg-short/90 text-white" : ""}
           >
             <TrendingDown className="w-4 h-4 mr-2" />
             Short
@@ -317,15 +317,15 @@ export function TradingPanel({ currentPrice = 109200, userBalance = 0 }: Trading
         <Button
           onClick={handleSubmitOrder}
           className={`w-full ${
-            side === "long" ? "bg-long hover:bg-long/90 text-white" : "bg-short hover:bg-short/90 text-white"
+            side === "buy" ? "bg-long hover:bg-long/90 text-white" : "bg-short hover:bg-short/90 text-white"
           }`}
           disabled={!size || !wallet.isConnected || isSubmitting}
         >
           {isSubmitting 
             ? "Processing..." 
-            : side === "long" 
-              ? "Open Long Position" 
-              : "Open Short Position"
+            : side === "buy" 
+              ? "Open Buy Position" 
+              : "Open Sell Position"
           }
         </Button>
 
