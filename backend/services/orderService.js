@@ -221,10 +221,94 @@ const updateOrderHandler = async (req, res) => {
   }
 };
 
+// GET /orders/orderbook - Get order book (bids and asks)
+const getOrderBookHandler = async (req, res) => {
+  try {
+    // Get all open buy orders (bids) sorted by price descending
+    const bidsResult = await pool.query(`
+      SELECT price, SUM(quantity) as size 
+      FROM orders 
+      WHERE (side = 'BUY' OR side = 'LONG') 
+        AND status = 'OPEN' 
+        AND price IS NOT NULL
+      GROUP BY price 
+      ORDER BY price DESC 
+      LIMIT 10
+    `);
+
+    // Get all open sell orders (asks) sorted by price ascending
+    const asksResult = await pool.query(`
+      SELECT price, SUM(quantity) as size 
+      FROM orders 
+      WHERE (side = 'SELL' OR side = 'SHORT') 
+        AND status = 'OPEN' 
+        AND price IS NOT NULL
+      GROUP BY price 
+      ORDER BY price ASC 
+      LIMIT 10
+    `);
+
+    // Calculate running totals for bids
+    let bidTotal = 0;
+    const bids = bidsResult.rows.map(bid => {
+      bidTotal += parseFloat(bid.size);
+      return {
+        price: parseFloat(bid.price),
+        size: parseFloat(bid.size),
+        total: bidTotal
+      };
+    });
+
+    // Calculate running totals for asks
+    let askTotal = 0;
+    const asks = asksResult.rows.map(ask => {
+      askTotal += parseFloat(ask.size);
+      return {
+        price: parseFloat(ask.price),
+        size: parseFloat(ask.size),
+        total: askTotal
+      };
+    });
+
+    // Calculate spread and last price
+    const bestBid = bids.length > 0 ? bids[0].price : 0;
+    const bestAsk = asks.length > 0 ? asks[0].price : 0;
+    const spread = bestAsk && bestBid ? bestAsk - bestBid : 0;
+    
+    // Get last filled order price as last price
+    const lastPriceResult = await pool.query(`
+      SELECT price 
+      FROM orders 
+      WHERE status = 'FILLED' 
+        AND price IS NOT NULL 
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `);
+    
+    const lastPrice = lastPriceResult.rows.length > 0 
+      ? parseFloat(lastPriceResult.rows[0].price) 
+      : (bestBid + bestAsk) / 2 || 52000; // fallback to mid price or default
+
+    res.json({
+      success: true,
+      data: {
+        bids,
+        asks,
+        spread,
+        lastPrice
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching order book:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch order book' });
+  }
+};
+
 module.exports = {
   getAllOrdersHandler,
   getOrderByIdHandler,
   getOrdersByUserHandler,
   createOrderHandler,
-  updateOrderHandler
+  updateOrderHandler,
+  getOrderBookHandler
 }; 

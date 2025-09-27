@@ -5,10 +5,13 @@ const {
   getOrderByIdHandler,
   getOrdersByUserHandler,
   createOrderHandler,
-  updateOrderHandler
+  updateOrderHandler,
+  getOrderBookHandler
 } = require('../services/orderService');
 
 router.get('/', getAllOrdersHandler);
+
+router.get('/orderbook', getOrderBookHandler);
 
 router.get('/:id', getOrderByIdHandler);
 
