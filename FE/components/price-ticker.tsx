@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, TrendingDown } from "lucide-react"
+import { useBTCPriceWithHistory } from "@/hooks/useBTCPrice"
 
 interface PriceData {
   symbol: string
@@ -15,37 +15,26 @@ interface PriceData {
 }
 
 export function PriceTicker() {
-  const [priceData, setPriceData] = useState<PriceData>({
+  const {
+    price,
+    loading,
+    error,
+    change24h,
+    changePercent24h,
+    high24h,
+    low24h,
+    volume24h
+  } = useBTCPriceWithHistory()
+
+  const priceData: PriceData = {
     symbol: "BTC-USD",
-    price: 52150,
-    change24h: 1234.56,
-    changePercent24h: 2.43,
-    high24h: 53200,
-    low24h: 50800,
-    volume24h: 1234.56,
-  })
-
-  // Simulate real-time price updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPriceData((prev) => {
-        const priceChange = (Math.random() - 0.5) * 50
-        const newPrice = Math.max(prev.price + priceChange, 45000) // Minimum price floor
-
-        return {
-          ...prev,
-          price: newPrice,
-          change24h: prev.change24h + priceChange,
-          changePercent24h: ((newPrice - (newPrice - prev.change24h)) / (newPrice - prev.change24h)) * 100,
-          high24h: Math.max(prev.high24h, newPrice),
-          low24h: Math.min(prev.low24h, newPrice),
-          volume24h: prev.volume24h + Math.random() * 5,
-        }
-      })
-    }, 2000)
-
-    return () => clearInterval(interval)
-  }, [])
+    price: price,
+    change24h: change24h,
+    changePercent24h: changePercent24h,
+    high24h: high24h,
+    low24h: low24h,
+    volume24h: volume24h,
+  }
 
   const formatCurrency = (value: number, decimals = 2) => {
     return new Intl.NumberFormat("en-US", {
@@ -62,6 +51,42 @@ export function PriceTicker() {
   const getPriceChangeColor = (change: number) => (change >= 0 ? "text-long" : "text-short")
   const getBadgeVariant = (change: number) => (change >= 0 ? "default" : "destructive")
 
+  if (loading) {
+    return (
+      <div className="bg-card border-b">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">BTC-USD</h2>
+                <Badge variant="outline" className="text-xs">PERP</Badge>
+              </div>
+              <div className="text-2xl font-bold text-muted-foreground">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-card border-b">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">BTC-USD</h2>
+                <Badge variant="destructive" className="text-xs">ERROR</Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">Failed to load price</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-card border-b">
       <div className="container mx-auto px-4 py-3">
@@ -71,7 +96,7 @@ export function PriceTicker() {
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold">{priceData.symbol}</h2>
               <Badge variant="outline" className="text-xs">
-                PERP
+                USD
               </Badge>
             </div>
             <div className="flex items-center gap-3">

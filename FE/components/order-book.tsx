@@ -14,6 +14,21 @@ interface OrderBookProps {
   symbol?: string
 }
 
+interface RawOrder {
+  id: number
+  user_id: number
+  side: string
+  price: number | string | null
+  quantity: number | string
+  leverage: number | string
+  margin: number | string
+  max_slippage_bps: number
+  status: string
+  created_at: string
+  updated_at: string
+  wallet_address?: string
+}
+
 export function OrderBook({ symbol = "BTC/USD" }: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<{
     bids: OrderBookEntry[]
@@ -29,10 +44,113 @@ export function OrderBook({ symbol = "BTC/USD" }: OrderBookProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Process raw orders into order book format
+  const processOrdersToOrderBook = (orders: RawOrder[]) => {
+    console.log('Raw orders received:', orders.length)
+    
+    // Filter open orders with prices and convert strings to numbers
+    const openOrders = orders.filter(order => 
+      order.status === 'OPEN' && 
+      order.price !== null && 
+      order.price !== undefined &&
+      (typeof order.price === 'number' ? order.price > 0 : parseFloat(order.price) > 0)
+    ).map(order => ({
+      ...order,
+      price: typeof order.price === 'string' ? parseFloat(order.price) : order.price,
+      quantity: typeof order.quantity === 'string' ? parseFloat(order.quantity) : order.quantity
+    }))
+    
+    console.log('Orders with prices:', openOrders.length)
+
+    // Group buy orders (bids)
+    const buyOrders = openOrders.filter(order => 
+      order.side === 'BUY' || order.side === 'LONG'
+    )
+    
+    // Group sell orders (asks)  
+    const sellOrders = openOrders.filter(order =>
+      order.side === 'SELL' || order.side === 'SHORT'
+    )
+
+    console.log('Buy orders:', buyOrders.length, 'Sell orders:', sellOrders.length)
+
+    // Aggregate bids by price
+    const bidMap = new Map<number, number>()
+    buyOrders.forEach(order => {
+      const price = order.price as number
+      const currentSize = bidMap.get(price) || 0
+      bidMap.set(price, currentSize + order.quantity)
+    })
+
+    // Aggregate asks by price
+    const askMap = new Map<number, number>()
+    sellOrders.forEach(order => {
+      const price = order.price as number
+      const currentSize = askMap.get(price) || 0
+      askMap.set(price, currentSize + order.quantity)
+    })
+
+    // Convert to arrays and sort
+    const bidsArray = Array.from(bidMap.entries())
+      .map(([price, size]) => ({ price, size }))
+      .sort((a, b) => b.price - a.price) // Highest price first
+      .slice(0, 10) // Top 10 bids
+
+    const asksArray = Array.from(askMap.entries())
+      .map(([price, size]) => ({ price, size }))
+      .sort((a, b) => a.price - b.price) // Lowest price first
+      .slice(0, 10) // Top 10 asks
+
+    // Calculate running totals
+    let bidTotal = 0
+    const bids = bidsArray.map(bid => {
+      bidTotal += bid.size
+      return {
+        price: bid.price,
+        size: bid.size,
+        total: bidTotal
+      }
+    })
+
+    let askTotal = 0
+    const asks = asksArray.map(ask => {
+      askTotal += ask.size
+      return {
+        price: ask.price,
+        size: ask.size,
+        total: askTotal
+      }
+    })
+
+    // Calculate spread and last price
+    const bestBid = bids.length > 0 ? bids[0].price : 0
+    const bestAsk = asks.length > 0 ? asks[0].price : 0
+    const spread = bestAsk && bestBid ? bestAsk - bestBid : 0
+    
+    // Get last filled order price or use mid price as fallback
+    const filledOrders = orders.filter(order => 
+      order.status === 'FILLED' && 
+      order.price !== null
+    ).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    
+    const lastPrice = filledOrders.length > 0 
+      ? (typeof filledOrders[0].price === 'string' ? parseFloat(filledOrders[0].price!) : filledOrders[0].price!)
+      : (bestBid && bestAsk ? (bestBid + bestAsk) / 2 : 52000) // fallback
+
+    console.log('Processed order book:', { bids: bids.length, asks: asks.length, spread, lastPrice })
+
+    return {
+      bids,
+      asks,
+      spread,
+      lastPrice
+    }
+  }
+
   // Fetch order book data from backend
   const fetchOrderBook = async () => {
     try {
-      const response = await fetch('http://localhost:3001/orders/orderbook')
+      const response = await fetch('http://localhost:3001/orders/')
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -41,10 +159,11 @@ export function OrderBook({ symbol = "BTC/USD" }: OrderBookProps) {
       const result = await response.json()
       
       if (result.success) {
-        setOrderBook(result.data)
+        const processedOrderBook = processOrdersToOrderBook(result.data)
+        setOrderBook(processedOrderBook)
         setError(null)
       } else {
-        throw new Error(result.error || 'Failed to fetch order book')
+        throw new Error(result.error || 'Failed to fetch orders')
       }
     } catch (err) {
       console.error('Error fetching order book:', err)
@@ -64,8 +183,15 @@ export function OrderBook({ symbol = "BTC/USD" }: OrderBookProps) {
     return () => clearInterval(interval)
   }, [])
 
-  const formatPrice = (price: number) => price.toFixed(2)
-  const formatSize = (size: number) => size.toFixed(4)
+  const formatPrice = (price: number | string) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price
+    return isNaN(numPrice) ? '0.00' : numPrice.toFixed(2)
+  }
+  
+  const formatSize = (size: number | string) => {
+    const numSize = typeof size === 'string' ? parseFloat(size) : size
+    return isNaN(numSize) ? '0.0000' : numSize.toFixed(4)
+  }
 
   if (loading) {
     return (
@@ -148,15 +274,18 @@ export function OrderBook({ symbol = "BTC/USD" }: OrderBookProps) {
                 </div>
               ))
           ) : (
-            <div className="px-4 py-2 text-xs text-muted-foreground text-center">
-              No sell orders
+            <div className="px-4 py-8 text-xs text-muted-foreground text-center">
+              <div className="font-medium mb-1">No limit sell orders</div>
+              <div className="text-xs opacity-75">Only market orders found in database</div>
             </div>
           )}
         </div>
 
         {/* Spread indicator */}
         <div className="px-4 py-2 bg-muted/30 border-y">
-          <div className="text-center text-xs text-muted-foreground">Spread: ${formatPrice(orderBook.spread)}</div>
+          <div className="text-center text-xs text-muted-foreground">
+            {orderBook.spread > 0 ? `Spread: $${formatPrice(orderBook.spread)}` : 'No spread (no limit orders)'}
+          </div>
         </div>
 
         {/* Bids (Buy Orders) */}
@@ -174,8 +303,9 @@ export function OrderBook({ symbol = "BTC/USD" }: OrderBookProps) {
               </div>
             ))
           ) : (
-            <div className="px-4 py-2 text-xs text-muted-foreground text-center">
-              No buy orders
+            <div className="px-4 py-8 text-xs text-muted-foreground text-center">
+              <div className="font-medium mb-1">No limit buy orders</div>
+              <div className="text-xs opacity-75">Only market orders found in database</div>
             </div>
           )}
         </div>

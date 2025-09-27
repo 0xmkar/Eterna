@@ -33,7 +33,7 @@ export function PositionsTable() {
     const mockPositions: Position[] = [
       {
         id: "1",
-        symbol: "BTC-PERP",
+        symbol: "BTC-USD",
         side: "long",
         size: 0.5,
         entryPrice: 51800,

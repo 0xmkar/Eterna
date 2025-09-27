@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,25 +11,32 @@ import { Slider } from "@/components/ui/slider"
 import { TrendingUp, TrendingDown, Calculator } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useWallet } from "@/components/wallet-context"
-import { ethers } from 'ethers'
-import PerpMarketABI from '@/abi/DDexRBTC.json'
+import { useBTCPrice } from "@/hooks/useBTCPrice"
 
 interface TradingPanelProps {
   currentPrice?: number
   userBalance?: number
 }
 
-const NEXT_PERP_MARKET_ADDRESS = "0x4891151643A2532117CdA0ADA32D518211b92475"
-
-export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingPanelProps) {
+export function TradingPanel({ currentPrice = 109200, userBalance = 0 }: TradingPanelProps) {
+  const { price: btcPrice, loading: priceLoading } = useBTCPrice()
+  const actualCurrentPrice = btcPrice > 0 ? btcPrice : currentPrice
+  
   const [orderType, setOrderType] = useState<"market" | "limit">("market")
   const [side, setSide] = useState<"long" | "short">("long")
   const [size, setSize] = useState("")
-  const [price, setPrice] = useState(currentPrice.toString())
+  const [price, setPrice] = useState(actualCurrentPrice.toString())
   const [leverage, setLeverage] = useState([10])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const { wallet } = useWallet()
+
+  // Update price input when BTC price changes
+  useEffect(() => {
+    if (btcPrice > 0) {
+      setPrice(btcPrice.toString())
+    }
+  }, [btcPrice])
 
   const calculateMargin = () => {
     const sizeNum = Number.parseFloat(size) || 0
@@ -49,9 +56,9 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
     const maintenanceMargin = margin * 0.1 // 10% maintenance margin
 
     if (side === "long") {
-      return currentPrice - (maintenanceMargin / sizeNum) * currentPrice
+      return actualCurrentPrice - (maintenanceMargin / sizeNum) * actualCurrentPrice
     } else {
-      return currentPrice + (maintenanceMargin / sizeNum) * currentPrice
+      return actualCurrentPrice + (maintenanceMargin / sizeNum) * actualCurrentPrice
     }
   }
 
@@ -84,8 +91,8 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
     const orderData = {
       user_id: userId,
       side: side.toUpperCase(), // Convert to LONG/SHORT
-      // price: orderType === "limit" ? parseFloat(price) : null,
-      price: null,
+      price: orderType === 'market' ? actualCurrentPrice : parseFloat(price),
+      // price: null,
       quantity: parseFloat(size),
       leverage: leverage[0],
       margin: calculateMargin(),
@@ -203,7 +210,7 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
     <Card className="h-full">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Trade BTC-PERP</span>
+          <span>Trade BTC-USD</span>
           <Badge variant="outline" className="text-xs">
             Max 50x
           </Badge>

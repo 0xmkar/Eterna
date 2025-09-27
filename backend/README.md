@@ -74,8 +74,6 @@ DB_PORT=5432
 # Server Configuration
 PORT=3001
 
-# Email Configuration (if using)
-# Add your email service configuration here
 ```
 
 ### 4. Start the Server
@@ -266,12 +264,6 @@ All endpoints return consistent error responses:
 }
 ```
 
-Common HTTP status codes:
-- `200` - Success
-- `201` - Created
-- `400` - Bad Request (validation errors)
-- `404` - Not Found
-- `500` - Internal Server Error
 
 ## Example Usage
 
@@ -313,16 +305,3 @@ For development with auto-restart on file changes:
 ```bash
 npm run dev
 ```
-
-## Database Connection
-
-The application uses connection pooling for efficient database connections. Connection configuration is in `config/database.js` and can be customized via environment variables.
-
-## Notes
-
-- Removed Supabase dependency completely
-- Uses native PostgreSQL with `pg` library
-- Maintains existing functionality for perp price updates
-- Added comprehensive error handling and validation
-- Supports both exact and partial updates for orders
-- Includes health check endpoint for monitoring 

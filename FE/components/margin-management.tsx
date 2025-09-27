@@ -11,6 +11,7 @@ import { AlertTriangle, Plus, Minus, Wallet, ArrowUpDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ethers } from "ethers"
 import { createContractInstance } from "@/lib/utils"
+import { useBTCPrice } from "@/hooks/useBTCPrice"
 
 interface MarginManagementProps {
   userBalance?: number
@@ -24,13 +25,17 @@ export function MarginManagement({
   availableMargin = 0.942,
   marginUtilization = 62.3,
 }: MarginManagementProps) {
+  const { price: btcPrice } = useBTCPrice()
   const [depositAmount, setDepositAmount] = useState("")
   const [withdrawAmount, setWithdrawAmount] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const { toast } = useToast()
 
   const formatBTC = (value: number) => value != 0 ? `${value.toFixed(6)} BTC` : "Connect your wallet"
-  const formatUSD = (value: number, btcPrice = 109751) => `$${(value * btcPrice).toLocaleString()}`
+  const formatUSD = (value: number, btcPriceOverride?: number) => {
+    const priceToUse = btcPriceOverride || btcPrice || 109751 // Fallback to hardcoded price
+    return `$${(value * priceToUse).toLocaleString()}`
+  }
 
   const handleDeposit = async () => {
     const amount = Number.parseFloat(depositAmount)
