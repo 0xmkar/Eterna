@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { TrendingUp, TrendingDown, Calculator } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useWallet } from "@/components/wallet-context"
 import { ethers } from 'ethers'
 import PerpMarketABI from '@/abi/DDexRBTC.json'
 
@@ -26,7 +27,9 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
   const [size, setSize] = useState("")
   const [price, setPrice] = useState(currentPrice.toString())
   const [leverage, setLeverage] = useState([10])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
+  const { wallet } = useWallet()
 
   const calculateMargin = () => {
     const sizeNum = Number.parseFloat(size) || 0
@@ -52,11 +55,74 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
     }
   }
 
+  // Get user ID from backend using wallet address
+  const getUserId = async (walletAddress: string): Promise<number | null> => {
+    try {
+      const response = await fetch(`http://localhost:3001/users/wallet/${walletAddress}`)
+      if (response.ok) {
+        const result = await response.json()
+        return result.data.id
+      }
+      return null
+    } catch (error) {
+      console.error('Error fetching user ID:', error)
+      return null
+    }
+  }
+
+  // Create order in backend database
+  const createOrderInBackend = async () => {
+    if (!wallet.address) {
+      throw new Error('Wallet not connected')
+    }
+
+    const userId = await getUserId(wallet.address)
+    if (!userId) {
+      throw new Error('User not found in database')
+    }
+
+    const orderData = {
+      user_id: userId,
+      side: side.toUpperCase(), // Convert to LONG/SHORT
+      // price: orderType === "limit" ? parseFloat(price) : null,
+      price: null,
+      quantity: parseFloat(size),
+      leverage: leverage[0],
+      margin: calculateMargin(),
+      max_slippage_bps: 5, // Default 5 basis points
+      status: "OPEN"
+    }
+
+    const response = await fetch('http://localhost:3001/orders', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(orderData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to create order')
+    }
+
+    return await response.json()
+  }
+
   const handleSubmitOrder = async () => {    
     if (!size || Number.parseFloat(size) <= 0) {
       toast({
         title: "Invalid size",
         description: "Please enter a valid position size",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!wallet.isConnected) {
+      toast({
+        title: "Wallet not connected",
+        description: "Please connect your wallet to place orders",
         variant: "destructive",
       })
       return
@@ -71,64 +137,19 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
       })
       return
     }
+
+    setIsSubmitting(true)
   
     try {
-      // Check if wallet is connected
-      if (!window.ethereum) {
-        toast({
-          title: "Wallet not found",
-          description: "Please install a Web3 wallet",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Get provider and signer
-      const provider = new ethers.BrowserProvider(window.ethereum as any)
-      const signer = await provider.getSigner()
-
-      const perpMarketContract = new ethers.Contract(
-        NEXT_PERP_MARKET_ADDRESS as string,
-        PerpMarketABI.abi,
-        signer
-      )
-
-      // Convert size to wei (assuming size is in BTC, convert to 18 decimals)
-      const sizeInWei = ethers.parseEther(size.toString())
-
-      // Determine if it's a long position (assuming 'side' variable: 'long' or 'short')
-      const isLong = side.toLowerCase() == 'long'
-      // Convert required margin to wei (rBTC has 18 decimals)
-      const totalRequiredInWei = ethers.parseEther(requiredMargin.toString())
-  
-      // Show loading toast
+      // First, create order in backend database
       toast({
-        title: "Submitting order",
-        description: "Please confirm the transaction in your wallet",
+        title: "Creating order",
+        description: "Saving order to database...",
       })
-  
-      // Call the smart contract function
-      const tx = await perpMarketContract.openPosition(
-        isLong,
-        sizeInWei,
-        {
-          value: totalRequiredInWei, // Send rBTC as msg.value
-          gasLimit: 500000, // Adjust gas limit as needed
-        }
-      )
-  
-      // Show transaction submitted toast
-      toast({
-        title: "Transaction submitted",
-        description: `Transaction hash: ${tx.hash}`,
-      })
-  
-      // Wait for transaction confirmation
-      const receipt = await tx.wait()
-      
-      console.log("Transaction confirmed:", receipt)
-  
-      // Success toast
+
+      const orderResult = await createOrderInBackend()
+      console.log('Order created in backend:', orderResult.data)
+
       toast({
         title: "Order submitted successfully",
         description: `${side.toUpperCase()} ${size} BTC at ${leverage[0]}x leverage`,
@@ -144,25 +165,37 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
       // Handle different types of errors
       let errorMessage = "An error occurred while submitting the order"
       
-      if (error.code === 4001) {
+      if (error instanceof Error) {
+        if (error.message.includes('User not found')) {
+          errorMessage = "User not found in database. Please reconnect your wallet."
+        } else if (error.message.includes('Failed to create order')) {
+          errorMessage = "Failed to create order in database"
+        } else if (error.message.includes('Wallet not connected')) {
+          errorMessage = "Please connect your wallet first"
+        }
+      }
+      
+      if ((error as any)?.code === 4001) {
         errorMessage = "Transaction rejected by user"
-      } else if (error.code === -32603) {
+      } else if ((error as any)?.code === -32603) {
         errorMessage = "Transaction failed - please check your balance and try again"
-      } else if (error.message.includes("ZeroAmount")) {
+      } else if ((error as any)?.message?.includes("ZeroAmount")) {
         errorMessage = "Invalid amount - size must be greater than 0"
-      } else if (error.message.includes("InsufficientMargin")) {
+      } else if ((error as any)?.message?.includes("InsufficientMargin")) {
         errorMessage = "Insufficient margin for this trade"
-      } else if (error.message.includes("InvalidLeverage")) {
+      } else if ((error as any)?.message?.includes("InvalidLeverage")) {
         errorMessage = "Leverage exceeds maximum allowed"
-      } else if (error.message.includes("InvalidPrice")) {
+      } else if ((error as any)?.message?.includes("InvalidPrice")) {
         errorMessage = "Invalid price - please try again"
       }
   
       toast({
-        title: "Transaction failed",
+        title: "Order failed",
         description: errorMessage,
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -264,20 +297,39 @@ export function TradingPanel({ currentPrice = 52000, userBalance = 0 }: TradingP
           </div>
         )}
 
+        {/* Wallet Connection Status */}
+        {!wallet.isConnected && (
+          <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              Please connect your wallet to place orders
+            </p>
+          </div>
+        )}
+
         {/* Submit Button */}
         <Button
           onClick={handleSubmitOrder}
           className={`w-full ${
             side === "long" ? "bg-long hover:bg-long/90 text-white" : "bg-short hover:bg-short/90 text-white"
           }`}
-          disabled={!size}
+          disabled={!size || !wallet.isConnected || isSubmitting}
         >
-          {side === "long" ? "Open Long Position" : "Open Short Position"}
+          {isSubmitting 
+            ? "Processing..." 
+            : side === "long" 
+              ? "Open Long Position" 
+              : "Open Short Position"
+          }
         </Button>
 
         {/* Balance Info */}
         <div className="text-xs text-muted-foreground text-center">
           Available Balance: {userBalance.toFixed(4)} rBTC
+          {wallet.isConnected && (
+            <div className="mt-1">
+              Connected: {wallet.address?.slice(0, 6)}...{wallet.address?.slice(-4)}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
