@@ -7,9 +7,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { WalletProvider } from '@/components/wallet-context'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Eterna'
 }
 
 export default function RootLayout({
