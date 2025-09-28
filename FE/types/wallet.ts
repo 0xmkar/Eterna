@@ -15,6 +15,9 @@ export interface WalletState {
   address: string | null
   balance: string | null
   chainId: number | null
+  // New fields for multi-account support
+  allAccounts: string[]
+  selectedAccountIndex: number
 }
 
 export interface WalletContextType {
@@ -22,6 +25,9 @@ export interface WalletContextType {
   connectWallet: () => Promise<void>
   disconnectWallet: () => void
   isConnecting: boolean
+  // New functions for account management
+  switchAccount: (index: number) => Promise<void>
+  getAllAccounts: () => Promise<string[]>
 }
 
 export interface ContractAddresses {

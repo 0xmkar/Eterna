@@ -221,8 +221,10 @@ const updateOrderHandler = async (req, res) => {
   }
 };
 
+// GET /orders/orderbook - Get order book (bids and asks)
 const getOrderBookHandler = async (req, res) => {
   try {
+    // Get all open buy orders (bids) sorted by price descending
     const bidsResult = await pool.query(`
       SELECT price, SUM(quantity) as size 
       FROM orders 
@@ -234,6 +236,7 @@ const getOrderBookHandler = async (req, res) => {
       LIMIT 10
     `);
 
+    // Get all open sell orders (asks) sorted by price ascending
     const asksResult = await pool.query(`
       SELECT price, SUM(quantity) as size 
       FROM orders 

@@ -1,8 +1,7 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-import {ethers} from 'ethers'
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+import { ethers } from "ethers"
 import DDexRBTCABI from "@/abi/DDexRBTC.json"
-
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -10,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 
 const CONTRACT_ADDRESS = "0x5c145e59Cf7dfa07b30Da1f25603229982438d72"
 
-export const createContractInstance = async () => {
+export const createContractInstance = async (accountAddress?: string) => {
   // Check if wallet is connected
   if (!window.ethereum) {
     throw new Error("No wallet found. Please install MetaMask or another Web3 wallet.");
@@ -25,11 +24,25 @@ export const createContractInstance = async () => {
   // Create provider using ethers v6 syntax
   const provider = new ethers.BrowserProvider(window.ethereum);
 
-  // Get signer (connected wallet)
-  const signer = await provider.getSigner();
+  // Get signer for specific account or default to first account
+  let signer;
+  if (accountAddress && accounts.includes(accountAddress)) {
+    // Switch to specific account if provided and available
+    signer = await provider.getSigner(accountAddress);
+  } else {
+    // Use default account (first one)
+    signer = await provider.getSigner();
+  }
   
   // Create contract instance
   const contract = new ethers.Contract(CONTRACT_ADDRESS, DDexRBTCABI.abi, signer);
   
   return contract;
+};
+
+// Helper function to get contract instance with current selected wallet account
+export const createContractInstanceWithSelectedAccount = async () => {
+  // This would typically get the selected account from wallet context
+  // For now, it uses the default behavior
+  return createContractInstance();
 };
