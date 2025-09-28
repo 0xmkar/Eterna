@@ -24,6 +24,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
     address: null,
     balance: null,
     chainId: null,
+    allAccounts: [],
+    selectedAccountIndex: 0,
   })
   const [isConnecting, setIsConnecting] = useState(false)
   const { toast } = useToast()
@@ -49,11 +51,59 @@ export function WalletProvider({ children }: WalletProviderProps) {
             address: accounts[0],
             balance: (Number.parseInt(balance, 16) / 1e18).toFixed(4),
             chainId: Number.parseInt(chainId, 16),
+            allAccounts: accounts,
+            selectedAccountIndex: 0,
           })
         }
       } catch (error) {
         console.error("Error checking wallet connection:", error)
       }
+    }
+  }
+
+  const getAllAccounts = async (): Promise<string[]> => {
+    if (!window.ethereum) {
+      return []
+    }
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_accounts" })
+      return accounts
+    } catch (error) {
+      console.error("Error getting accounts:", error)
+      return []
+    }
+  }
+
+  const switchAccount = async (index: number) => {
+    if (!window.ethereum || index >= wallet.allAccounts.length || index < 0) {
+      return
+    }
+
+    try {
+      const selectedAddress = wallet.allAccounts[index]
+      const balance = await window.ethereum.request({
+        method: "eth_getBalance",
+        params: [selectedAddress, "latest"],
+      })
+
+      setWallet(prev => ({
+        ...prev,
+        address: selectedAddress,
+        balance: (Number.parseInt(balance, 16) / 1e18).toFixed(4),
+        selectedAccountIndex: index,
+      }))
+
+      toast({
+        title: "Account switched",
+        description: `Switched to account ${selectedAddress.slice(0, 6)}...${selectedAddress.slice(-4)}`,
+      })
+    } catch (error) {
+      console.error("Error switching account:", error)
+      toast({
+        title: "Switch failed",
+        description: "Failed to switch account",
+        variant: "destructive",
+      })
     }
   }
 
@@ -111,6 +161,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
         address: accounts[0],
         balance: (Number.parseInt(balance, 16) / 1e18).toFixed(4),
         chainId: Number.parseInt(chainId, 16),
+        allAccounts: accounts,
+        selectedAccountIndex: 0,
       })
 
       // Create or check user in backend
@@ -147,7 +199,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
       toast({
         title: "Wallet connected",
-        description: "Successfully connected to Rootstock testnet",
+        description: `Successfully connected to Rootstock testnet with ${accounts.length} account(s)`,
       })
     } catch (error) {
       console.error("Error connecting wallet:", error)
@@ -167,6 +219,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
       address: null,
       balance: null,
       chainId: null,
+      allAccounts: [],
+      selectedAccountIndex: 0,
     })
     toast({
       title: "Wallet disconnected",
@@ -181,6 +235,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
         connectWallet,
         disconnectWallet,
         isConnecting,
+        switchAccount,
+        getAllAccounts,
       }}
     >
       {children}

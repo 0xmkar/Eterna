@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ethers } from "ethers"
 import { createContractInstance } from "@/lib/utils"
 import { useBTCPrice } from "@/hooks/useBTCPrice"
+import { useWallet } from "@/components/wallet-context"
 
 interface MarginManagementProps {
   userBalance?: number
@@ -26,11 +27,12 @@ export function MarginManagement({
   marginUtilization = 62.3,
 }: MarginManagementProps) {
   const { price: btcPrice } = useBTCPrice()
+  const { wallet } = useWallet()
   const [depositAmount, setDepositAmount] = useState("")
   const [withdrawAmount, setWithdrawAmount] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const { toast } = useToast()
-
+  
   const formatBTC = (value: number) => value != 0 ? `${value.toFixed(6)} BTC` : "Connect your wallet"
   const formatUSD = (value: number, btcPriceOverride?: number) => {
     const priceToUse = btcPriceOverride || btcPrice || 109751 // Fallback to hardcoded price
@@ -69,7 +71,7 @@ export function MarginManagement({
       // Optionally refresh balance after deposit
       // await refreshBalance()
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Deposit error:", error)
       
       // Handle specific error cases
@@ -77,9 +79,9 @@ export function MarginManagement({
       
       if (error.code === 4001) {
         errorMessage = "Transaction rejected by user"
-      } else if (error.message.includes("insufficient funds")) {
+      } else if (error.message?.includes("insufficient funds")) {
         errorMessage = "Insufficient rBTC balance"
-      } else if (error.message.includes("Must deposit more than 0")) {
+      } else if (error.message?.includes("Must deposit more than 0")) {
         errorMessage = "Amount must be greater than 0"
       }
       
@@ -94,6 +96,19 @@ export function MarginManagement({
   }
 
   const handleWithdraw = async () => {
+    if (!wallet.address) {
+      toast({
+        title: "Wallet not connected",
+        description: "Please connect your wallet to withdraw funds",
+        variant: "destructive",
+      })
+      return
+    }
+
+    let ddexRBTCContract = await createContractInstance()
+    const availableMargin = await ddexRBTCContract.balanceOf(wallet.address)
+    console.log("availableMargin", availableMargin, wallet.address)
+
     const amount = Number.parseFloat(withdrawAmount)
     if (!amount || amount <= 0) {
       toast({
@@ -145,20 +160,20 @@ export function MarginManagement({
         description: `Withdrew ${formatBTC(amount)} rBTC from DDex (Fee: ${formatBTC(Number.parseFloat(ethers.formatEther(withdrawalFee)))})`,
       })
       setWithdrawAmount("")      
-    } catch (error) {
+    } catch (error: any) {
       console.error("Withdrawal error:", error)
       
       let errorMessage = "Failed to withdraw funds from DDex"
       
       if (error.code === 4001) {
         errorMessage = "Transaction rejected by user"
-      } else if (error.message.includes("Insufficient balance including fee")) {
+      } else if (error.message?.includes("Insufficient balance including fee")) {
         errorMessage = "Insufficient balance to cover withdrawal and fees"
-      } else if (error.message.includes("Amount must be greater than 0")) {
+      } else if (error.message?.includes("Amount must be greater than 0")) {
         errorMessage = "Withdrawal amount must be greater than 0"
-      } else if (error.message.includes("Contract has insufficient rBTC")) {
+      } else if (error.message?.includes("Contract has insufficient rBTC")) {
         errorMessage = "Contract has insufficient rBTC for withdrawal"
-      } else if (error.message.includes("rBTC transfer failed")) {
+      } else if (error.message?.includes("rBTC transfer failed")) {
         errorMessage = "Failed to transfer rBTC to your wallet"
       }
       

@@ -3,12 +3,13 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Wallet, Copy, ExternalLink, LogOut } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Wallet, Copy, ExternalLink, LogOut, Users } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useWallet } from "@/components/wallet-context"
 
 export function WalletConnect() {
-  const { wallet, connectWallet, disconnectWallet, isConnecting } = useWallet()
+  const { wallet, connectWallet, disconnectWallet, isConnecting, switchAccount } = useWallet()
   const { toast } = useToast()
 
   const copyAddress = () => {
@@ -23,6 +24,11 @@ export function WalletConnect() {
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
+  }
+
+  const handleAccountSwitch = (value: string) => {
+    const index = parseInt(value)
+    switchAccount(index)
   }
 
   if (!wallet.isConnected) {
@@ -45,11 +51,41 @@ export function WalletConnect() {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full" />
             <span className="text-sm font-medium">Connected</span>
+            {wallet.allAccounts.length > 1 && (
+              <Badge variant="outline" className="text-xs">
+                <Users className="w-3 h-3 mr-1" />
+                {wallet.allAccounts.length}
+              </Badge>
+            )}
           </div>
           <Badge variant="secondary" className="text-xs">
-            {wallet.chainId === 5115 ? "RootStock Testnet" : `Chain ${wallet.chainId}`}
+            {wallet.chainId === 31 ? "RootStock Testnet" : `Chain ${wallet.chainId}`}
           </Badge>
         </div>
+
+        {/* Account Selector - only show if multiple accounts */}
+        {wallet.allAccounts.length > 1 && (
+          <div className="mb-3">
+            <label className="text-xs text-muted-foreground mb-1 block">Account</label>
+            <Select value={wallet.selectedAccountIndex.toString()} onValueChange={handleAccountSwitch}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {wallet.allAccounts.map((account, index) => (
+                  <SelectItem key={account} value={index.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{formatAddress(account)}</span>
+                      {index === wallet.selectedAccountIndex && (
+                        <Badge variant="secondary" className="text-xs">Active</Badge>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">

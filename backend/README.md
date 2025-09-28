@@ -305,3 +305,81 @@ For development with auto-restart on file changes:
 ```bash
 npm run dev
 ```
+
+## Order Matching System
+
+The backend includes an automated order matching engine that runs every 2 seconds as a cron job.
+
+### Features
+
+- **Automated Matching**: Orders are automatically matched based on price and slippage tolerance
+- **Slippage Protection**: Respects `max_slippage_bps` setting for each order
+- **Smart Contract Integration**: Executes trades via blockchain using `bulkTransfer` function
+- **Trade Recording**: All executed trades are recorded in the `trades` table
+- **Order Status Updates**: Orders are updated to `FILLED` or `PARTIALLY_FILLED` status
+
+### Order Matching API Endpoints
+
+#### GET /order-matching/status
+Get order matching system status
+- **Response**: 
+```json
+{
+  "success": true,
+  "data": {
+    "cronJobRunning": true,
+    "currentlyProcessing": false,
+    "message": "Order matching is active"
+  }
+}
+```
+
+#### POST /order-matching/trigger
+Manually trigger order matching process (for testing)
+- **Response**: 
+```json
+{
+  "success": true,
+  "message": "Order matching process completed"
+}
+```
+
+### Database Schema Updates
+
+The order matching system requires an additional `trades` table:
+
+```sql
+-- Create trades table for storing executed trade records
+CREATE TABLE IF NOT EXISTS public.trades (
+    id bigserial NOT NULL,
+    buy_order_id int8 NOT NULL,
+    sell_order_id int8 NOT NULL,
+    execution_price numeric NOT NULL,
+    quantity numeric NOT NULL,
+    buyer_address varchar(42) NOT NULL,
+    seller_address varchar(42) NOT NULL,
+    trade_value numeric NOT NULL,
+    executed_at timestamp DEFAULT now() NULL,
+    created_at timestamp DEFAULT now() NULL,
+    CONSTRAINT trades_pkey PRIMARY KEY (id),
+    CONSTRAINT trades_buy_order_id_fkey FOREIGN KEY (buy_order_id) REFERENCES public.orders(id),
+    CONSTRAINT trades_sell_order_id_fkey FOREIGN KEY (sell_order_id) REFERENCES public.orders(id)
+);
+```
+
+Run the migration script: `backend/migrations/create_trades_table.sql`
+
+### Environment Variables
+
+Additional environment variables required for order matching:
+
+```env
+# Smart Contract Configuration
+CONTRACT_ADDRESS=0x1234567890abcdef1234567890abcdef12345678
+PRIVATE_KEY=your_private_key_here
+RPC_URL=https://public-node.testnet.rsk.co
+
+# Order Matching Configuration
+ORDER_MATCHING_ENABLED=true
+ORDER_MATCHING_INTERVAL_SECONDS=2
+```
